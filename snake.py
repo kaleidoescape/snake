@@ -11,7 +11,6 @@ class Game():
     def __init__(self, board_height, board_width):
         self.height = board_height
         self.width = board_width
-        self.buffer = 1
 
         self.score = 0
         self.score_multiplier = 1
@@ -25,11 +24,15 @@ class Game():
         self.snake_icon = 1
         self.apple_icon = 2
 
+        self.buffer = 1
         self.initialize_board()
+
         self.snake_body = None
         self.snake_head = None
-        self.apples = None
         self.initialize_snake()
+
+        self.simultaneous_apples = 1
+        self.apples = None
         self.initialize_apples()
 
     def initialize_board(self):
@@ -79,9 +82,12 @@ class Game():
             self.board[new_x, new_y] = self.snake_icon
             self.snake_body.append((new_x, new_y))
 
-    def initialize_apples(self, amount=1):
+    def initialize_apples(self, amount=None):
+        if amount is None:
+            amount = self.simultaneous_apples
+
         if self.apples is None:
-            self.apples = deque()
+            self.apples = set()
 
         for i in range(amount):
             self.spawn_apple()
@@ -92,7 +98,6 @@ class Game():
         if key is None:
             key = self.last_move
         self.last_move = key
-
 
         delta_x, delta_y = self.movement[key]
         x, y = self.snake_head
@@ -105,7 +110,7 @@ class Game():
         if self.collided(x, y):
             self.game_over = True
         elif (x, y) in self.apples:
-            self.grow_snake()
+            self.grow_snake(x, y)
         else:
             self.move_snake(x, y)
 
@@ -129,10 +134,12 @@ class Game():
     def spawn_apple(self):
         x, y = self.random_free_spot()
         self.board[x, y] = self.apple_icon
-        self.apples.append((x, y))
+        self.apples.add((x, y))
 
-    def grow_snake(self):
-        x, y = self.apples.popleft() #TODO account for multiple apples
+    def grow_snake(self, x, y):
+        assert (x, y) in self.apples, 'no apple found at ({x}, {y})'
+
+        self.apples.remove((x, y))
         self.board[x,y] = self.snake_icon
         self.snake_body.appendleft(self.snake_head)
         self.snake_head = (x, y)
