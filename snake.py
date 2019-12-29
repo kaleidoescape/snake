@@ -6,11 +6,87 @@ import pygame
 from collections import deque
 from pygame import K_DOWN, K_ESCAPE, K_LEFT, K_RIGHT, K_UP, QUIT
 
+class GameException(BaseException):
+    """Raise for errors running the game."""
+
+class Snake():
+    def __init__(self, movement, backwards):
+        self.movement = movement
+        self.backwards = backwards
+        self.last_move = None
+        self.head = None
+        self.body = deque()
+
+    def initialize(self, x, y, length=3):
+        self.head = (x, y)
+        tall = random.randint(0, 1)
+        for i in range(1, length):
+            if tall:
+                new_x = x
+                new_y = y + i
+                self.last_move = K_UP
+                self.backwards[None] = K_DOWN
+            else:
+                new_x = x + i
+                new_y = y
+                self.last_move = K_LEFT
+                self.backwards[None] = K_RIGHT
+            self.body.append((new_x, new_y))
+
+    def move(self, x, y):
+        self.body.appendleft(self.head)
+        self.head = (x, y)
+        old_x, old_y = self.body.pop()
+        
+    def grow(self, x, y):
+        self.body.appendleft(self.head)
+        self.head = (x, y)
+
+class Board():
+    def __init__(self, board_height, board_width, buffers=[1, 1]):
+        self.height = board_height
+        self.width = board_width
+        self.buffers = buffers
+        self.pieces = {
+            'snake_head': 3,
+            'snake_body': 2,
+            'apple': 1,
+            'empty': 0
+        }
+        self.piece_names = {self.pieces[k]:k for k in self.pieces}
+
+        self.board = np.zeros((self.height, self.width), dtype=int)
+
+    def random_free_spot(self, 
+                         extra_buffers=[0, 0], 
+                         use_basic_buffers=True):
+        if use_basic_buffers:
+            buffers = self.buffers
+        else:
+            buffers = [0, 0]
+        while True:
+            x = random.randint(
+                buffers[0] + extra_buffers[0],              #from
+                self.height - buffers[0] - extra_buffers[0] #to
+            )
+            y = random.randint(
+                buffers[1] + extra_buffers[1],              #from
+                self.height - buffers[1] - extra_buffers[1] #to
+            )
+            if self.get_piece(x, y) == 'empty':
+                return (x, y)
+
+    def set_piece(self, x, y, piece_name):
+        self.board[x, y] = self.pieces[piece_name]
+    
+    def get_piece(self, x, y):
+        name = self.piece_names[self.board[x, y]]
+        return name
+
 class Game():
 
     def __init__(self, board_height, board_width):
-        self.height = board_height
-        self.width = board_width
+        self.board = Board(board_height, board_width)
 
         self.score = 0
         self.score_multiplier = 1
@@ -20,23 +96,10 @@ class Game():
         self.horiz_speed = 1
         self.initialize_movement()
 
-        self.empty_icon = 0
-        self.snake_icon = 1
-        self.apple_icon = 2
-
-        self.buffer = 1
-        self.initialize_board()
-
-        self.snake_body = None
-        self.snake_head = None
         self.initialize_snake()
 
-        self.simultaneous_apples = 1
-        self.apples = None
+        self.n_apples = 1
         self.initialize_apples()
-
-    def initialize_board(self):
-        self.board = np.zeros((self.height, self.width), dtype=int)
 
     def initialize_movement(self):
         self.movement = {
@@ -55,42 +118,23 @@ class Game():
         }
         self.last_move = None 
 
-    def initialize_snake(self, snake_length=3):
-        if self.snake_head is None:
-            x, y = self.random_free_spot(
-                extra_x_buffer=snake_length, 
-                extra_y_buffer=snake_length
-            )
-            self.snake_head = (x, y)
-            self.board[x, y] = self.snake_icon
-            self.snake_body = deque()
-
-        tall = random.randint(0, 1)
-
-        x, y = self.snake_head
-        for i in range(1, snake_length):
-            if tall:
-                new_x = x
-                new_y = y + i
-                self.last_move = K_UP
-                self.backwards[None] = K_DOWN
-            else:
-                new_x = x + i
-                new_y = y
-                self.last_move = K_LEFT
-                self.backwards[None] = K_RIGHT
-            self.board[new_x, new_y] = self.snake_icon
-            self.snake_body.append((new_x, new_y))
-
-    def initialize_apples(self, amount=None):
-        if amount is None:
-            amount = self.simultaneous_apples
-
-        if self.apples is None:
-            self.apples = set()
-
-        for i in range(amount):
+    def initialize_apples(self):
+        self.apples = set()
+        for i in range(self.n_apples):
             self.spawn_apple()
+
+    def spawn_apple(self):
+        x, y = self.board.random_free_spot()
+        self.board.set_piece(x, y, 'apple')
+        self.apples.add((x, y))
+
+    def initialize_snake(self, snake_length=3):
+        x, y = self.board.random_free_spot(extra_buffers=[snake_length, snake_length])
+        self.snake = Snake(self.movement, self.backwards)
+        self.snake.initialize(x, y)
+        self.board.set_piece(x, y, 'snake_head')
+        for x, y in self.snake.body:
+            self.board.set_piece(x, y, 'snake_body')
 
     def get_move(self, key):
         if key == self.backwards[self.last_move]:
@@ -100,7 +144,7 @@ class Game():
         self.last_move = key
 
         delta_x, delta_y = self.movement[key]
-        x, y = self.snake_head
+        x, y = self.snake.head
         x = x + delta_x
         y = y + delta_y
         return (x, y)
@@ -115,56 +159,31 @@ class Game():
             self.move_snake(x, y)
 
     def collided(self, x, y):
-        if (x >= self.height or 
+        if (x >= self.board.height or 
             x < 0 or
-            y >= self.width or
+            y >= self.board.width or
             y < 0 or
-            self.board[x, y] == self.snake_icon):
+            self.board.get_piece(x, y) == 'snake_body'):
             return True
         else:
             return False
 
     def move_snake(self, x, y):
-        self.snake_body.appendleft(self.snake_head)
-        self.snake_head = (x, y)
-        old_x, old_y = self.snake_body.pop()
-        self.board[x, y] = self.snake_icon
-        self.board[old_x, old_y] = self.empty_icon
+        old_x, old_y = self.snake.body[-1]
+        self.snake.move(x, y)
+        self.board.set_piece(x, y, 'snake_head')
+        self.board.set_piece(old_x, old_y, 'empty')
         
-    def spawn_apple(self):
-        x, y = self.random_free_spot()
-        self.board[x, y] = self.apple_icon
-        self.apples.add((x, y))
-
     def grow_snake(self, x, y):
         assert (x, y) in self.apples, 'no apple found at ({x}, {y})'
 
         self.apples.remove((x, y))
-        self.board[x,y] = self.snake_icon
-        self.snake_body.appendleft(self.snake_head)
-        self.snake_head = (x, y)
+        old_x, old_y = self.snake.head
+        self.snake.grow(x, y)
+        self.board.set_piece(old_x, old_y, 'snake_body')
+        self.board.set_piece(x, y, 'snake_head')
         self.score += self.score_multiplier
         self.spawn_apple()
-
-    def random_free_spot(self, 
-                         extra_x_buffer=0, 
-                         extra_y_buffer=0, 
-                         use_buffer=True):
-        if use_buffer:
-            buffer = self.buffer
-        else:
-            buffer = 0
-        while True:
-            x = random.randint(
-                self.buffer + extra_x_buffer, 
-                self.height - buffer - extra_x_buffer
-            )
-            y = random.randint(
-                self.buffer + extra_y_buffer,
-                self.width - buffer - extra_y_buffer
-            )
-            if not self.board[x, y]:
-                return (x, y)
 
 class App():
     
@@ -203,10 +222,10 @@ class App():
         )
 
     def display_snake(self):
-        for (x, y) in self.game.snake_body:
+        for (x, y) in self.game.snake.body:
             self.draw(x, y, 'snake_body')
 
-        x, y = self.game.snake_head
+        x, y = self.game.snake.head
         self.draw(x, y, 'snake_head')
         
     def display_apples(self):
