@@ -10,10 +10,7 @@ class GameException(BaseException):
     """Raise for errors running the game."""
 
 class Snake():
-    def __init__(self, movement, backwards):
-        self.movement = movement
-        self.backwards = backwards
-        self.last_move = None
+    def __init__(self):
         self.head = None
         self.body = deque()
 
@@ -24,23 +21,25 @@ class Snake():
             if tall:
                 new_x = x
                 new_y = y + i
-                self.last_move = K_UP
-                self.backwards[None] = K_DOWN
+                last_move = K_UP
             else:
                 new_x = x + i
                 new_y = y
-                self.last_move = K_LEFT
-                self.backwards[None] = K_RIGHT
+                last_move = K_LEFT
             self.body.append((new_x, new_y))
+        return last_move
 
     def move(self, x, y):
         self.body.appendleft(self.head)
         self.head = (x, y)
-        old_x, old_y = self.body.pop()
+        old_x, old_y = self.body.pop() #pop poop
+        return old_x, old_y 
         
     def grow(self, x, y):
+        old_x, old_y = self.head
         self.body.appendleft(self.head)
         self.head = (x, y)
+        return old_x, old_y
 
 class Board():
     def __init__(self, board_height, board_width, buffers=[1, 1]):
@@ -129,9 +128,11 @@ class Game():
         self.apples.add((x, y))
 
     def initialize_snake(self, snake_length=3):
-        x, y = self.board.random_free_spot(extra_buffers=[snake_length, snake_length])
-        self.snake = Snake(self.movement, self.backwards)
-        self.snake.initialize(x, y)
+        x, y = self.board.random_free_spot(
+            extra_buffers=[snake_length, snake_length])
+        self.snake = Snake()
+        self.last_move = self.snake.initialize(x, y)
+        self.backwards[None] = self.backwards[self.last_move]
         self.board.set_piece(x, y, 'snake_head')
         for x, y in self.snake.body:
             self.board.set_piece(x, y, 'snake_body')
@@ -169,8 +170,7 @@ class Game():
             return False
 
     def move_snake(self, x, y):
-        old_x, old_y = self.snake.body[-1]
-        self.snake.move(x, y)
+        old_x, old_y = self.snake.move(x, y)
         self.board.set_piece(x, y, 'snake_head')
         self.board.set_piece(old_x, old_y, 'empty')
         
@@ -178,8 +178,7 @@ class Game():
         assert (x, y) in self.apples, 'no apple found at ({x}, {y})'
 
         self.apples.remove((x, y))
-        old_x, old_y = self.snake.head
-        self.snake.grow(x, y)
+        old_x, old_y = self.snake.grow(x, y)
         self.board.set_piece(old_x, old_y, 'snake_body')
         self.board.set_piece(x, y, 'snake_head')
         self.score += self.score_multiplier
@@ -188,8 +187,8 @@ class Game():
 class App():
     
     def __init__(self,
-                 pixel_height = 20,
-                 pixel_width = 20,
+                 pixel_height = 25,
+                 pixel_width = 25,
                  screen_height = 600,
                  screen_width = 600):
         self.pixel_height = pixel_height
@@ -208,7 +207,6 @@ class App():
         self.board_height = int(screen_height / pixel_height)
         self.board_width = int(screen_height / pixel_height)
         self.game = Game(self.board_height, self.board_width)
-        
 
     def coords_to_field(self, x, y):
         return (x * self.pixel_width, y * self.pixel_height)
