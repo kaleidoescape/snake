@@ -16,17 +16,21 @@ class Snake():
 
     def initialize(self, x, y, length=3):
         self.head = (x, y)
-        tall = random.randint(0, 1)
+
+        moves = [
+            ( 0,  1, K_UP),
+            ( 0, -1, K_DOWN),
+            ( 1,  0, K_LEFT),
+            (-1,  0, K_RIGHT)
+        ]
+        move = moves[random.randint(0, 3)]
+
         for i in range(1, length):
-            if tall:
-                new_x = x
-                new_y = y + i
-                last_move = K_UP
-            else:
-                new_x = x + i
-                new_y = y
-                last_move = K_LEFT
-            self.body.append((new_x, new_y))
+            x = x + move[0]
+            y = y + move[1]
+            self.body.append((x, y))
+
+        last_move = move[2]
         return last_move
 
     def move(self, x, y):
@@ -189,8 +193,8 @@ class App():
     def __init__(self,
                  pixel_height = 25,
                  pixel_width = 25,
-                 screen_height = 600,
-                 screen_width = 600):
+                 screen_height = 350,
+                 screen_width = 350):
         self.pixel_height = pixel_height
         self.pixel_width = pixel_width
         self.screen_height = screen_height
@@ -267,6 +271,8 @@ class App():
         score_text_y = game_over_text_y + font_size
         self.display.blit(score_text, [score_text_x, score_text_y])
 
+        pygame.display.flip()
+
     def on_loop(self, last_key):
         if self.game.game_over:
             self.on_game_over()
@@ -291,7 +297,7 @@ class App():
     def on_cleanup(self):
         pygame.quit()
  
-    def on_execute(self, speed=10):
+    def on_execute(self, speed=9):
         self.on_init()
 
         last_key = None
