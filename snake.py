@@ -14,24 +14,21 @@ class Snake():
         self.head = None
         self.body = deque()
 
-    def initialize(self, x, y, length=3):
+    def initialize(self, x, y, movement=None, length=3):
         self.head = (x, y)
+        if not movement: #a snake of length 1, i.e. just the head
+            return None
 
-        moves = [
-            ( 0,  1, K_UP),
-            ( 0, -1, K_DOWN),
-            ( 1,  0, K_LEFT),
-            (-1,  0, K_RIGHT)
-        ]
-        move = moves[random.randint(0, 3)]
+        move_names = list(movement.keys())
+        move_name = move_names[random.randint(0, len(movement) - 1)]
+        move = movement[move_name]
 
         for i in range(1, length):
             x = x + move[0]
             y = y + move[1]
-            self.body.append((x, y))
+            self.grow(x, y)
 
-        last_move = move[2]
-        return last_move
+        return move_name
 
     def move(self, x, y):
         self.body.appendleft(self.head)
@@ -99,6 +96,7 @@ class Game():
         self.horiz_speed = 1
         self.initialize_movement()
 
+        self.initial_snake_length = 3
         self.initialize_snake()
 
         self.n_apples = 1
@@ -134,9 +132,14 @@ class Game():
     def initialize_snake(self, snake_length=3):
         x, y = self.board.random_free_spot(
             extra_buffers=[snake_length, snake_length])
+
+        movement = {k:self.movement[k] for k in self.movement if k}
         self.snake = Snake()
-        self.last_move = self.snake.initialize(x, y)
+        self.last_move = self.snake.initialize(
+            x, y, movement, self.initial_snake_length)
+
         self.backwards[None] = self.backwards[self.last_move]
+
         self.board.set_piece(x, y, 'snake_head')
         for x, y in self.snake.body:
             self.board.set_piece(x, y, 'snake_body')
